@@ -13,7 +13,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "express": "^4.19.2",
-    "inngest": "^3.0.0"
+    "inngest": "^3.0.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.1",

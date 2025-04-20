@@ -1,24 +1,10 @@
-import { inngest } from "./client";
-import { RunQueued } from "./types";
-import supabase from "./supabase";
+import { inngest } from "../client";
+import { RunQueued } from "../types";
+import supabase from "../supabase";
 
 
 export default inngest.createFunction(
-    {
-        id: "process-run",
-        concurrency: [
-            {
-                scope: "fn",
-                key: "event.data.run_id",
-                limit: 20
-            },
-            {
-                scope: "account",
-                key: "perplexity",
-                limit: 20
-            }
-        ]
-    },
+    { id: "process-run" },
     { event: "run/queued" },
     async ({ event, step }: { event: RunQueued; step: any }) => {
 
@@ -30,7 +16,7 @@ export default inngest.createFunction(
         }
         await step.run("job-started", async () => {
             //wait 10 seconds
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            // await new Promise(resolve => setTimeout(resolve, 10000));
             return {
                 message: `Run id ${event.data?.run_id} started`
             };
@@ -75,10 +61,10 @@ export default inngest.createFunction(
             };
         });
 
-        await step.run("job-completed", async () => {
+        await step.run("job-running", async () => {
             const { data, error } = await supabase
                 .from("runs")
-                .update({ status: "completed" })
+                .update({ status: "processing" })
                 .eq("id", run_id)
                 .select();
 
@@ -87,8 +73,10 @@ export default inngest.createFunction(
             }
 
             return {
-                message: `Run id ${event.data?.run_id} completed`
+                message: `Run id ${event.data?.run_id} is running`
             };
         });
+
+
     }
 );

@@ -10,8 +10,25 @@ export type RunQueued = {
 export type RunRecordQueued = {
   name: "run/record/queued";
   data: {
-    run_record_id: string;
+    run_record_id: any;
   };
 }
 
-export const schemas = new EventSchemas().fromUnion<RunQueued | RunRecordQueued>();
+export type EmailValidateEvent = {
+  name: "email/validate";
+  data: {
+    run_record?: any;
+    email?: string;
+  };
+};
+
+export type CompanyValidateEvent = {
+  name: "company/validate";
+  data: {
+    run_record: any;
+    website?: string;
+    requirements?: string;
+  };
+}
+
+export const schemas = new EventSchemas().fromUnion<RunQueued | RunRecordQueued | EmailValidateEvent | CompanyValidateEvent>();
