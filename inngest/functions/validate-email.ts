@@ -79,7 +79,7 @@ export const email_finding_api = inngest.createFunction(
     { id: "email-finding-api" },
     { event: "email/find-api" },
     async ({ event, step }: { event: EmailValidateEvent, step: any }) => {
-        const { first_name, last_name, company_name, website } = event.data.run_record.record.data;
+        const { first_name, last_name, company_name, website: domain } = event.data.run_record.record.data;
         if (!first_name || !last_name) {
             return {
                 status: 'invalid',
@@ -87,7 +87,7 @@ export const email_finding_api = inngest.createFunction(
                 reason: 'No first name or last name provided for email finding'
             }
         }
-        if (!website) {
+        if (!domain) {
             return {
                 status: 'invalid',
                 email: null,
@@ -101,15 +101,15 @@ export const email_finding_api = inngest.createFunction(
             .eq('first_name', first_name)
             .eq('last_name', last_name)
             // .eq('company_name', company_name)
-            .eq('domain', website)
+            .eq('domain', domain)
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
         if (cachedResult) {
-            console.log("Using cached email finding result", { first_name, last_name, company_name, domain: website });
-            return cachedResult.response_data;
+            console.log("Using cached email finding result", { first_name, last_name, company_name, domain });
+            return { ...cachedResult.response_data, cached: true };
         }
-        const response = await leadmagic('/email-finder', { first_name, last_name, company_name, domain: website });
+        const response = await leadmagic('/email-finder', { first_name, last_name, company_name, domain });
         console.log("Leadmagic email finding response", response);
         //cache the result
         const { error: insertError } = await supabase
@@ -119,7 +119,7 @@ export const email_finding_api = inngest.createFunction(
                 first_name,
                 last_name,
                 company_name,
-                domain: website,
+                domain,
                 status: response.email_status,
                 mx_provider: response.mx_provider,
                 mx_record: response.mx_record,
@@ -127,6 +127,7 @@ export const email_finding_api = inngest.createFunction(
                 is_domain_catch_all: response.is_domain_catch_all,
                 credits_consumed: response.credits_consumed,
                 response_data: response,
+                cached: false
             });
         if (insertError) {
             console.error("Error caching email finding result:", insertError);
