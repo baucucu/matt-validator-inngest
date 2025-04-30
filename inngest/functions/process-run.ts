@@ -64,7 +64,10 @@ export default inngest.createFunction(
         await step.run("job-running", async () => {
             const { data, error } = await supabase
                 .from("runs")
-                .update({ status: "processing" })
+                .update({
+                    status: "processing",
+                    inngest_run_id: event.data?.run_id
+                })
                 .eq("id", run_id)
                 .select();
 

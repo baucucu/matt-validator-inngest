@@ -49,7 +49,7 @@ export default inngest.createFunction(
                 .insert({
                     website: run_record.record.data.website,
                     content: requirements,
-                    response_data: { ...company_validation, cached: false },
+                    response_data: { ...company_validation },
                     created_at: new Date().toISOString()
                 });
 
@@ -77,10 +77,6 @@ export const company_validation_api = inngest.createFunction(
 
         const validationResult = await validateCompany(website, requirements);
         console.log('Validation Result:', validationResult);
-        return {
-            valid: validationResult.valid,
-            reasoning: validationResult.reasoning,
-            cached: false
-        };
+        return validationResult;
     }
 ); 

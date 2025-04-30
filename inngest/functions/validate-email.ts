@@ -45,17 +45,17 @@ export const email_validation_api = inngest.createFunction(
         const response = await step.run("make-api-call", async () => {
             const result = await leadmagic('/email-validate', { email: run_record.record.data.email });
             console.log("Leadmagic email validation response", result);
-            return { ...result, cached: false };
+            return { ...result, status: result.email_status, cached: false };
         });
 
         // Step 3: Cache the result
         await step.run("cache-result", async () => {
-            const { error: insertError } = await supabase
+            const { data: cachedResult, error: insertError } = await supabase
                 .from('email_validation_cache')
                 .insert({
                     email: run_record.record.data.email,
                     response_data: response,
-                    email_status: response.email_status,
+                    status: response.email_status,
                     domain: response.domain,
                     mx_provider: response.mx_provider,
                     mx_record: response.mx_record,
@@ -67,6 +67,7 @@ export const email_validation_api = inngest.createFunction(
             if (insertError) {
                 console.error("Error caching email validation result:", insertError);
             }
+            return cachedResult;
         });
 
         return response;
@@ -81,14 +82,14 @@ export const email_finding_api = inngest.createFunction(
         const { first_name, last_name, company_name, website } = event.data.run_record.record.data;
         if (!first_name || !last_name) {
             return {
-                email_status: 'invalid',
+                status: 'invalid',
                 email: null,
                 reason: 'No first name or last name provided for email finding'
             }
         }
         if (!website) {
             return {
-                email_status: 'invalid',
+                status: 'invalid',
                 email: null,
                 reason: 'No website provided for email finding'
             }
@@ -119,7 +120,7 @@ export const email_finding_api = inngest.createFunction(
                 last_name,
                 company_name,
                 domain: website,
-                email_status: response.email_status,
+                status: response.email_status,
                 mx_provider: response.mx_provider,
                 mx_record: response.mx_record,
                 mx_security_gateway: response.mx_security_gateway,
@@ -186,7 +187,7 @@ export default inngest.createFunction(
                 .eq("id", run_record.id);
         });
 
-        if (email_validation.email_status !== 'valid') {
+        if (email_validation.status !== 'valid' && email_validation.status !== 'valid_catch_all') {
             logger.info("Email validation failed: email validation failed");
             const email_finding = await step.invoke("email-finding-api", {
                 function: email_finding_api,

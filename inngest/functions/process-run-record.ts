@@ -58,16 +58,16 @@ export default inngest.createFunction(
             }
         });
 
-        await step.run("update-run-record-email-validation", async () => {
-            const { error } = await supabase
-                .from("run_records")
-                .update({ email_validation_data: email_validation })
-                .eq("id", run_record_id);
-        });
+        // await step.run("update-run-record-email-validation", async () => {
+        //     const { error } = await supabase
+        //         .from("run_records")
+        //         .update({ email_validation_data: email_validation })
+        //         .eq("id", run_record_id);
+        // });
 
         console.log("Email validation data", { email_validation });
 
-        if (email_validation.email_status === "valid") {
+        if (email_validation.status === "valid" || email_validation.status === "valid_catch_all") {
             company_validation = await step.invoke("validate-company", {
                 function: validateCompany,
                 data: {
@@ -89,10 +89,10 @@ export default inngest.createFunction(
             return { status: "completed" };
         } else {
             //run step to update run record
-            await step.run("update-run-record-email-validation", async () => {
+            await step.run("update-run-record-status", async () => {
                 const { error } = await supabase
                     .from("run_records")
-                    .update({ email_validation_data: email_validation, status: "completed" })
+                    .update({ status: "completed" })
                     .eq("id", run_record_id);
             });
             //check if all run records are completed

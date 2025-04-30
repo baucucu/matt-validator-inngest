@@ -18,6 +18,7 @@ export interface PerplexityResponse {
         completion_tokens: number;
         total_tokens: number;
     };
+    cached: boolean;
 }
 
 const headers = {
@@ -99,6 +100,7 @@ export async function validateCompany(company: string, requirements: string): Pr
                 completion_tokens: 0,
                 total_tokens: 0,
             },
+            cached: false,
         };
     }
 }
