@@ -5,7 +5,7 @@ import leadmagic from "../leadmagic";
 
 
 export const email_validation_api = inngest.createFunction(
-    { id: "email-validation-api" },
+    { id: "email-validation-api", concurrency: 10 },
     { event: "email/validate-api" },
     async ({ event, step }: { event: EmailValidateEvent, step: any }) => {
         const { run_record } = event.data;
@@ -57,11 +57,7 @@ export const email_validation_api = inngest.createFunction(
                     response_data: response,
                     status: response.email_status,
                     domain: response.domain,
-                    mx_provider: response.mx_provider,
-                    mx_record: response.mx_record,
-                    mx_security_gateway: response.mx_security_gateway,
-                    is_domain_catch_all: response.is_domain_catch_all,
-                    credits_consumed: response.credits_consumed
+                    cached: false
                 });
 
             if (insertError) {
@@ -76,7 +72,7 @@ export const email_validation_api = inngest.createFunction(
 
 
 export const email_finding_api = inngest.createFunction(
-    { id: "email-finding-api" },
+    { id: "email-finding-api", concurrency: 10 },
     { event: "email/find-api" },
     async ({ event, step }: { event: EmailValidateEvent, step: any }) => {
         const { first_name, last_name, company_name, website: domain } = event.data.run_record.record.data;
@@ -112,6 +108,15 @@ export const email_finding_api = inngest.createFunction(
         const response = await leadmagic('/email-finder', { first_name, last_name, company_name, domain });
         console.log("Leadmagic email finding response", response);
         //cache the result
+        console.log("Inserting into email_finding_cache:", {
+            first_name,
+            last_name,
+            company_name,
+            domain,
+            status: response.email_status,
+            response_data: response,
+            cached: false
+        });
         const { error: insertError } = await supabase
             .from('email_finding_cache')
             .insert({
@@ -120,13 +125,8 @@ export const email_finding_api = inngest.createFunction(
                 last_name,
                 company_name,
                 domain,
-                status: response.email_status,
-                mx_provider: response.mx_provider,
-                mx_record: response.mx_record,
-                mx_security_gateway: response.mx_security_gateway,
-                is_domain_catch_all: response.is_domain_catch_all,
-                credits_consumed: response.credits_consumed,
                 response_data: response,
+                status: response.email_status,
                 cached: false
             });
         if (insertError) {
@@ -138,7 +138,7 @@ export const email_finding_api = inngest.createFunction(
 
 // === Main function: validate-email ===
 export default inngest.createFunction(
-    { id: "validate-email" },
+    { id: "validate-email", concurrency: 10 },
     { event: "email/validate" },
     async ({ event, step, logger }: { event: EmailValidateEvent, step: any, logger: any }) => {
         const { run_record } = event.data;

@@ -5,7 +5,7 @@ import { CompanyValidateEvent } from "../types";
 import { validateCompany } from "../perplexity";
 
 export default inngest.createFunction(
-    { id: "validate-company" },
+    { id: "validate-company", concurrency: 10 },
     { event: "company/validate" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
         const { run_record } = event.data;
@@ -21,11 +21,12 @@ export default inngest.createFunction(
 
         console.log('Requirements Record:', requirements);
         //check cache first by company_name
+        const contentHash = require('crypto').createHash('md5').update(requirements).digest('hex');
         const { data: cachedResult, error: cacheError } = await supabase
             .from('company_validation_cache')
             .select('*')
             .eq('website', run_record.record.data.website)
-            .eq('content', requirements)
+            .eq('content_hash', contentHash)
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
@@ -49,6 +50,7 @@ export default inngest.createFunction(
                 .insert({
                     website: run_record.record.data.website,
                     content: requirements,
+                    content_hash: contentHash,
                     response_data: { ...company_validation },
                     created_at: new Date().toISOString()
                 });
@@ -63,7 +65,7 @@ export default inngest.createFunction(
 );
 
 export const company_validation_api = inngest.createFunction(
-    { id: "validate-company-api" },
+    { id: "validate-company-api", concurrency: 10 },
     { event: "company/validate-api" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
         const { website, requirements } = event.data;

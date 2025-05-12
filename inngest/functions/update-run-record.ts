@@ -23,7 +23,7 @@ export const updateRunRecord = async (run_record_id: string, field_name: string,
 };
 
 export default inngest.createFunction(
-    { id: "update-run-record" },
+    { id: "update-run-record", concurrency: 10 },
     { event: "run/record/update" },
     async ({ event, step }: { event: any, step: any }) => {
         const { run_record_id, field_name, data } = event.data;

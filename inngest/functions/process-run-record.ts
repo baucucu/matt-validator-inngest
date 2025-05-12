@@ -9,7 +9,7 @@ const TIMEOUT = "1d";
 export default inngest.createFunction(
     {
         id: "process-run-record",
-
+        concurrency: 10,
     },
     { event: "run/record/queued" },
     async ({ event, step }: { event: RunRecordQueued; step: any }) => {
