@@ -10,6 +10,14 @@ export default inngest.createFunction(
     {
         id: "process-run-record",
         concurrency: 10,
+        // timeouts: {
+        //     start: TIMEOUT,
+        //     end: TIMEOUT
+        // },
+        // cancelOn: {
+        //     event: "run/record/cancelled",
+        //     if: "async.data.run_record_id === event.data.run_record_id"
+        // }
     },
     { event: "run/record/queued" },
     async ({ event, step }: { event: RunRecordQueued; step: any }) => {
