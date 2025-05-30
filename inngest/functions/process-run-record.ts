@@ -58,58 +58,60 @@ export default inngest.createFunction(
             return data;
         });
 
-        // Stepr 2: Validate email
-        email_validation = await step.invoke("validate-email", {
-            function: validateEmail,
-            data: {
-                run_record
-            }
-        });
+        // Check if we should skip email validation
+        const skipEmailValidation = run_record.skip_email_validation === true;
 
-        // await step.run("update-run-record-email-validation", async () => {
-        //     const { error } = await supabase
-        //         .from("run_records")
-        //         .update({ email_validation_data: email_validation })
-        //         .eq("id", run_record_id);
-        // });
-
-        console.log("Email validation data", { email_validation });
-
-        if (email_validation.status === "valid" || email_validation.status === "valid_catch_all") {
-            company_validation = await step.invoke("validate-company", {
-                function: validateCompany,
+        if (!skipEmailValidation) {
+            // Step 2: Validate email
+            email_validation = await step.invoke("validate-email", {
+                function: validateEmail,
                 data: {
                     run_record
                 }
             });
 
-            await step.run("update-run-record-company-validation", async () => {
-                const { error } = await supabase
-                    .from("run_records")
-                    .update({ company_validation_data: company_validation, status: "completed" })
-                    .eq("id", run_record_id);
-            });
+            console.log("Email validation data", { email_validation });
 
-            console.log("Company validation data", { company_validation });
-            await step.run("check-run-records-completion", async () => {
-                await checkRunRecordsCompletion(step, run_record.run_id);
-            });
-            return { status: "completed" };
-        } else {
-            //run step to update run record
-            await step.run("update-run-record-status", async () => {
-                const { error } = await supabase
-                    .from("run_records")
-                    .update({ status: "completed" })
-                    .eq("id", run_record_id);
-            });
-            //check if all run records are completed
-            await step.run("check-run-records-completion", async () => {
-                await checkRunRecordsCompletion(step, run_record.run_id);
-            });
-
-            return { status: "completed" };
+            if (email_validation.status !== "valid" && email_validation.status !== "valid_catch_all") {
+                // If email validation failed, mark as completed and return
+                await step.run("update-run-record-status", async () => {
+                    const { error } = await supabase
+                        .from("run_records")
+                        .update({ status: "completed" })
+                        .eq("id", run_record_id);
+                });
+                await step.run("check-run-records-completion", async () => {
+                    await checkRunRecordsCompletion(step, run_record.run_id);
+                });
+                return { status: "completed" };
+            }
         }
+
+        // Proceed with company validation
+        company_validation = await step.invoke("validate-company", {
+            function: validateCompany,
+            data: {
+                run_record
+            }
+        });
+
+        await step.run("update-run-record-company-validation", async () => {
+            const { error } = await supabase
+                .from("run_records")
+                .update({
+                    company_validation_data: company_validation,
+                    status: "completed",
+                    // If we skipped email validation, set a placeholder for email_validation_data
+                    ...(skipEmailValidation && { email_validation_data: { status: "skipped" } })
+                })
+                .eq("id", run_record_id);
+        });
+
+        console.log("Company validation data", { company_validation });
+        await step.run("check-run-records-completion", async () => {
+            await checkRunRecordsCompletion(step, run_record.run_id);
+        });
+        return { status: "completed" };
     }
 );
 
