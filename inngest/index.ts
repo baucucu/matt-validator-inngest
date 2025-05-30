@@ -4,6 +4,7 @@ import validate_email, { email_validation_api, email_finding_api } from "./funct
 import validate_company, { company_validation_api } from "./functions/validate-company";
 import update_run_record from "./functions/update-run-record";
 import cancel_run from "./functions/cancel-run";
+import retrigger_stuck_records from "./functions/retrigger-stuck-records";
 
 export const functions = [
     process_run,
@@ -14,7 +15,8 @@ export const functions = [
     email_finding_api,
     company_validation_api,
     update_run_record,
-    cancel_run
+    cancel_run,
+    retrigger_stuck_records
 ];
 
 export { inngest } from "./client";
