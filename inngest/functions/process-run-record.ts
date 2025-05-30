@@ -37,6 +37,8 @@ export default inngest.createFunction(
                     *,
                     record:records!inner(data),
                     run:run_id (
+                        id,
+                        skip_email_validation,
                         requirement:requirement_id (
                             content
                         )
@@ -58,8 +60,8 @@ export default inngest.createFunction(
             return data;
         });
 
-        // Check if we should skip email validation
-        const skipEmailValidation = run_record.skip_email_validation === true;
+        // Check if we should skip email validation based on run settings
+        const skipEmailValidation = run_record.run?.skip_email_validation === true;
 
         if (!skipEmailValidation) {
             // Step 2: Validate email
