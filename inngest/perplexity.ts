@@ -22,6 +22,18 @@ export interface PerplexityResponse {
     cached: boolean;
 }
 
+export interface CompanyValidationData {
+    status: boolean;
+    error: any | null;
+    usage: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+    };
+    reasoning: string;
+    cached: boolean;
+}
+
 const headers = {
     Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
     'Content-Type': 'application/json',
@@ -59,7 +71,7 @@ function isValidResponse(obj: any): obj is PerplexityResponse {
     return typeof obj?.valid === 'boolean' && typeof obj?.reasoning === 'string';
 }
 
-export async function validateCompany(company: string, requirements: string): Promise<PerplexityResponse> {
+export async function validateCompany(company: string, requirements: string): Promise<CompanyValidationData> {
     try {
         const payload = {
             model: 'sonar',
@@ -80,7 +92,6 @@ export async function validateCompany(company: string, requirements: string): Pr
         const { data, status, statusText } = await axios.post(PERPLEXITY_API_URL, payload, { headers });
 
         if (status !== 200) {
-            // For API errors, we'll retry after 30 seconds
             throw new Error(`API error: ${statusText}`);
         }
 
@@ -89,27 +100,28 @@ export async function validateCompany(company: string, requirements: string): Pr
         console.log('Perplexity usage', { usage });
         const result = extractJsonFromContent(content);
 
-        if (result) return { ...result, usage };
+        if (result) {
+            return {
+                status: result.valid,
+                error: null,
+                usage,
+                reasoning: result.reasoning,
+                cached: false,
+            };
+        }
 
-        // For invalid response format, we'll retry after 10 seconds
         throw new Error('Invalid response format from Perplexity API');
     } catch (error) {
         console.error('Perplexity API error:', error);
-
-        // For network errors or other unexpected errors, we'll let Inngest handle the retry
-        if (axios.isAxiosError(error)) {
-            throw error;
-        }
-
-        // For other errors, return a permanent failure response
         return {
-            valid: false,
-            reasoning: `Error validating company: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            status: false,
+            error: error instanceof Error ? { message: error.message, stack: error.stack } : { message: String(error) },
             usage: {
                 prompt_tokens: 0,
                 completion_tokens: 0,
                 total_tokens: 0,
             },
+            reasoning: `Error validating company: ${error instanceof Error ? error.message : 'Unknown error'}`,
             cached: false,
         };
     }

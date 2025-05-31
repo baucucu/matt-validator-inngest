@@ -3,6 +3,7 @@ import { RunRecordQueued } from "../types";
 import supabase from "../supabase";
 import validateEmail from "./validate-email";
 import validateCompany from "./validate-company";
+import { CompanyValidationData } from "../perplexity";
 import { checkRunRecordsCompletion } from "../utils/check-run-records";
 const TIMEOUT = "1d";
 
@@ -39,7 +40,7 @@ export default inngest.createFunction(
     async ({ event, step }: { event: RunRecordQueued; step: any }) => {
         const run_record_id = event.data?.run_record_id;
         let email_validation: EmailValidationResponse | undefined;
-        let company_validation: CompanyValidationResponse | undefined;
+        let company_validation: CompanyValidationData | undefined;
         if (!run_record_id) {
             throw new Error("Missing run_record_id");
         }
@@ -130,17 +131,15 @@ export default inngest.createFunction(
         console.log("About to update run_record:", { run_record_id, company_validation });
 
         // Check if company validation was successful
-        const isCompanyValid = company_validation.valid === true;
-        const status = isCompanyValid ? "completed" : "failed";
-        const failureReason = !isCompanyValid ? `Company validation failed: ${company_validation.reasoning || 'Unknown reason'}` : null;
+        const isCompanyValid = company_validation.status === true;
+        const processingStatus = "completed";
 
         await step.run("update-run-record-company-validation", async () => {
             const { error, data } = await supabase
                 .from("run_records")
                 .update({
                     company_validation_data: company_validation,
-                    status,
-                    failure_reason: failureReason,
+                    status: processingStatus,
                     // If we skipped email validation, set a placeholder for email_validation_data
                     ...(skipEmailValidation && { email_validation_data: { status: "skipped" } })
                 })
@@ -163,8 +162,8 @@ export default inngest.createFunction(
             await checkRunRecordsCompletion(step, run_record.run_id);
         });
         return {
-            status,
-            ...(failureReason && { reason: failureReason })
+            status: processingStatus,
+            company_validation_data: company_validation
         };
     }
 );
