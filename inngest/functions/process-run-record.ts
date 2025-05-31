@@ -126,13 +126,16 @@ export default inngest.createFunction(
             throw new Error("Company validation failed to return a response");
         }
 
+        // Log before update
+        console.log("About to update run_record:", { run_record_id, company_validation });
+
         // Check if company validation was successful
         const isCompanyValid = company_validation.valid === true;
         const status = isCompanyValid ? "completed" : "failed";
         const failureReason = !isCompanyValid ? `Company validation failed: ${company_validation.reasoning || 'Unknown reason'}` : null;
 
         await step.run("update-run-record-company-validation", async () => {
-            const { error } = await supabase
+            const { error, data } = await supabase
                 .from("run_records")
                 .update({
                     company_validation_data: company_validation,
@@ -141,7 +144,18 @@ export default inngest.createFunction(
                     // If we skipped email validation, set a placeholder for email_validation_data
                     ...(skipEmailValidation && { email_validation_data: { status: "skipped" } })
                 })
-                .eq("id", run_record_id);
+                .eq("id", run_record_id)
+                .select(); // Get updated rows
+
+            // Log the result
+            console.log("Supabase update result:", { error, data, run_record_id, company_validation });
+
+            if (error) {
+                throw new Error("Supabase update error: " + error.message);
+            }
+            if (!data || data.length === 0) {
+                throw new Error("Supabase update did not match any rows for run_record_id: " + run_record_id);
+            }
         });
 
         console.log("Company validation data", { company_validation });
