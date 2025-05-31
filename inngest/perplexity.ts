@@ -1,5 +1,6 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { inngest } from './client';
 
 dotenv.config();
 
@@ -79,6 +80,7 @@ export async function validateCompany(company: string, requirements: string): Pr
         const { data, status, statusText } = await axios.post(PERPLEXITY_API_URL, payload, { headers });
 
         if (status !== 200) {
+            // For API errors, we'll retry after 30 seconds
             throw new Error(`API error: ${statusText}`);
         }
 
@@ -89,9 +91,17 @@ export async function validateCompany(company: string, requirements: string): Pr
 
         if (result) return { ...result, usage };
 
+        // For invalid response format, we'll retry after 10 seconds
         throw new Error('Invalid response format from Perplexity API');
     } catch (error) {
         console.error('Perplexity API error:', error);
+
+        // For network errors or other unexpected errors, we'll let Inngest handle the retry
+        if (axios.isAxiosError(error)) {
+            throw error;
+        }
+
+        // For other errors, return a permanent failure response
         return {
             valid: false,
             reasoning: `Error validating company: ${error instanceof Error ? error.message : 'Unknown error'}`,

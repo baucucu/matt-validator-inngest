@@ -65,7 +65,15 @@ export default inngest.createFunction(
 );
 
 export const company_validation_api = inngest.createFunction(
-    { id: "validate-company-api", concurrency: 10 },
+    {
+        id: "validate-company-api",
+        concurrency: 10,
+        retries: {
+            max: 3,
+            // Retry after 30 seconds for API errors
+            retryAfter: 30
+        }
+    },
     { event: "company/validate-api" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
         const { website, requirements } = event.data;
@@ -77,8 +85,30 @@ export const company_validation_api = inngest.createFunction(
             };
         }
 
-        const validationResult = await validateCompany(website, requirements);
-        console.log('Validation Result:', validationResult);
-        return validationResult;
+        try {
+            const validationResult = await validateCompany(website, requirements);
+            console.log('Validation Result:', validationResult);
+            return validationResult;
+        } catch (error) {
+            // Log the error for debugging
+            console.error('Company validation error:', error);
+
+            // If it's an Axios error (network/API error), let Inngest retry
+            if (error instanceof Error) {
+                throw error;
+            }
+
+            // For other errors, return a permanent failure
+            return {
+                valid: false,
+                reasoning: `Error validating company: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                usage: {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    total_tokens: 0,
+                },
+                cached: false,
+            };
+        }
     }
 ); 
