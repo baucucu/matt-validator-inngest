@@ -27,8 +27,8 @@ export default inngest.createFunction(
         id: "process-run-record",
         concurrency: 10,
         timeouts: {
-            start: TIMEOUT,
-            end: TIMEOUT
+            start: TIMEOUT,  // How long a run can stay queued before starting
+            finish: TIMEOUT  // How long a run can execute after starting
         },
         cancelOn: [{
             event: "run/record/cancelled",

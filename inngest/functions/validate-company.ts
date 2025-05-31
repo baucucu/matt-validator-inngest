@@ -67,11 +67,7 @@ export const company_validation_api = inngest.createFunction(
     {
         id: "validate-company-api",
         concurrency: 10,
-        retries: {
-            max: 3,
-            // Retry after 30 seconds for API errors
-            retryAfter: 30
-        }
+        retries: 3
     },
     { event: "company/validate-api" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
