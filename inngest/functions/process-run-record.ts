@@ -103,14 +103,14 @@ export default inngest.createFunction(
                         .update({
                             status: "failed",
                             email_validation_data: email_validation,
-                            failure_reason: `Email validation failed: ${email_validation.reason || 'Unknown reason'}`
+                            failure_reason: `Email validation failed: ${(email_validation as EmailValidationResponse).reason || 'Unknown reason'}`
                         })
                         .eq("id", run_record_id);
                 });
                 await step.run("check-run-records-completion", async () => {
                     await checkRunRecordsCompletion(step, run_record.run_id);
                 });
-                return { status: "failed", reason: `Email validation failed: ${email_validation.reason || 'Unknown reason'}` };
+                return { status: "failed", reason: `Email validation failed: ${(email_validation as EmailValidationResponse).reason || 'Unknown reason'}` };
             }
         }
 
