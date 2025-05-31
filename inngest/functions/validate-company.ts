@@ -1,4 +1,3 @@
-import { equal } from "assert";
 import { inngest } from "../client";
 import supabase from "../supabase";
 import { CompanyValidateEvent } from "../types";
