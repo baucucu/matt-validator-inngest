@@ -33,7 +33,14 @@ export default inngest.createFunction(
             .single();
         if (cachedResult) {
             console.log('Using cached company validation result', cachedResult);
-            return { ...cachedResult.response_data, cached: true };
+            const data = cachedResult.response_data;
+            return {
+                status: typeof data.status === 'boolean' ? data.status : !!data.valid,
+                error: data.error !== undefined ? data.error : null,
+                usage: data.usage !== undefined ? data.usage : {},
+                reasoning: data.reasoning || '',
+                cached: true
+            };
         } else {
             //call company validation api step
             console.log('Calling company validation api');
@@ -60,7 +67,13 @@ export default inngest.createFunction(
                 console.error("Error caching company validation result:", insertError);
             }
 
-            return company_validation;
+            return {
+                status: company_validation.status === true,
+                error: company_validation.error !== undefined ? company_validation.error : null,
+                usage: company_validation.usage !== undefined ? company_validation.usage : {},
+                reasoning: company_validation.reasoning || '',
+                cached: company_validation.cached === true
+            };
         }
     }
 );
