@@ -45,6 +45,8 @@ export default inngest.createFunction(
             throw new Error("Missing run_record_id");
         }
 
+        const ignore_cache = event.data?.ignore_cache;
+
         console.log('run_record_id:', run_record_id);
 
         // Step 1: Get run record data
@@ -86,7 +88,8 @@ export default inngest.createFunction(
             email_validation = await step.invoke("validate-email", {
                 function: validateEmail,
                 data: {
-                    run_record
+                    run_record,
+                    ignore_cache
                 }
             });
 
@@ -119,7 +122,8 @@ export default inngest.createFunction(
         company_validation = await step.invoke("validate-company", {
             function: validateCompany,
             data: {
-                run_record
+                run_record,
+                ignore_cache
             }
         });
 

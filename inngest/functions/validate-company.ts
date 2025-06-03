@@ -7,7 +7,7 @@ export default inngest.createFunction(
     { id: "validate-company", concurrency: 10 },
     { event: "company/validate" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
-        const { run_record } = event.data;
+        const { run_record, ignore_cache } = event.data;
         //get run_record's run requirements
         const requirements = run_record.run.requirement.content;
         if (!requirements) {
@@ -23,14 +23,18 @@ export default inngest.createFunction(
         console.log('Requirements Record:', requirements);
         //check cache first by company_name
         const contentHash = require('crypto').createHash('md5').update(requirements).digest('hex');
-        const { data: cachedResult, error: cacheError } = await supabase
-            .from('company_validation_cache')
-            .select('*')
-            .eq('website', run_record.record.data.website)
-            .eq('content_hash', contentHash)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+        let cachedResult = null;
+        if (!ignore_cache) {
+            const { data, error: cacheError } = await supabase
+                .from('company_validation_cache')
+                .select('*')
+                .eq('website', run_record.record.data.website)
+                .eq('content_hash', contentHash)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+            cachedResult = data;
+        }
         if (cachedResult) {
             console.log('Using cached company validation result', cachedResult);
             const data = cachedResult.response_data;
@@ -48,23 +52,24 @@ export default inngest.createFunction(
                 function: company_validation_api,
                 data: {
                     website: run_record.record.data.website,
-                    requirements: requirements
+                    requirements: requirements,
+                    ignore_cache
                 }
             });
             console.log('Company validation result', company_validation);
-            // Cache the result
-            const { error: insertError } = await supabase
+            // Overwrite (upsert) the cache
+            const { error: upsertError } = await supabase
                 .from('company_validation_cache')
-                .insert({
+                .upsert({
                     website: run_record.record.data.website,
                     content: requirements,
                     content_hash: contentHash,
                     response_data: { ...company_validation },
                     created_at: new Date().toISOString()
-                });
+                }, { onConflict: 'website,content_hash' });
 
-            if (insertError) {
-                console.error("Error caching company validation result:", insertError);
+            if (upsertError) {
+                console.error("Error upserting company validation result:", upsertError);
             }
 
             return {
@@ -86,7 +91,7 @@ export const company_validation_api = inngest.createFunction(
     },
     { event: "company/validate-api" },
     async ({ event, step }: { event: CompanyValidateEvent, step: any }) => {
-        const { website, requirements } = event.data;
+        const { website, requirements, ignore_cache } = event.data;
 
         if (!website || !requirements) {
             return {

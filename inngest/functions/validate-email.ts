@@ -8,34 +8,37 @@ export const email_validation_api = inngest.createFunction(
     { id: "email-validation-api", concurrency: 10 },
     { event: "email/validate-api" },
     async ({ event, step }: { event: EmailValidateEvent, step: any }) => {
-        const { run_record } = event.data;
+        const { run_record, ignore_cache } = event.data;
 
         if (!run_record.record.data.email) {
             throw new Error('No email provided for validation');
         }
 
-        // Step 1: Check cache
-        const cachedResult = await step.run("check-cache", async () => {
-            const { data, error } = await supabase
-                .from('email_validation_cache')
-                .select('*')
-                .eq('email', run_record.record.data.email)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
+        let cachedResult = null;
+        if (!ignore_cache) {
+            // Step 1: Check cache
+            cachedResult = await step.run("check-cache", async () => {
+                const { data, error } = await supabase
+                    .from('email_validation_cache')
+                    .select('*')
+                    .eq('email', run_record.record.data.email)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
 
-            if (error) {
-                console.error("Error checking cache:", error);
+                if (error) {
+                    console.error("Error checking cache:", error);
+                    return null;
+                }
+
+                if (data) {
+                    console.log("Using cached email validation result", { email: data.response_data.email });
+                    return data.response_data;
+                }
+
                 return null;
-            }
-
-            if (data) {
-                console.log("Using cached email validation result", { email: data.response_data.email });
-                return data.response_data;
-            }
-
-            return null;
-        });
+            });
+        }
 
         if (cachedResult) {
             return { ...cachedResult, cached: true };
@@ -48,22 +51,22 @@ export const email_validation_api = inngest.createFunction(
             return { ...result, status: result.email_status, cached: false };
         });
 
-        // Step 3: Cache the result
+        // Step 3: Upsert the result
         await step.run("cache-result", async () => {
-            const { data: cachedResult, error: insertError } = await supabase
+            const { error: upsertError } = await supabase
                 .from('email_validation_cache')
-                .insert({
+                .upsert({
                     email: run_record.record.data.email,
                     response_data: response,
                     status: response.email_status,
                     domain: response.domain,
-                    cached: false
-                });
+                    cached: false,
+                    created_at: new Date().toISOString()
+                }, { onConflict: 'email' });
 
-            if (insertError) {
-                console.error("Error caching email validation result:", insertError);
+            if (upsertError) {
+                console.error("Error upserting email validation result:", upsertError);
             }
-            return cachedResult;
         });
 
         return response;
@@ -75,7 +78,8 @@ export const email_finding_api = inngest.createFunction(
     { id: "email-finding-api", concurrency: 10 },
     { event: "email/find-api" },
     async ({ event, step }: { event: EmailValidateEvent, step: any }) => {
-        const { first_name, last_name, company_name, website: domain } = event.data.run_record.record.data;
+        const { run_record, ignore_cache } = event.data;
+        const { first_name, last_name, company_name, website: domain } = run_record.record.data;
         if (!first_name || !last_name) {
             return {
                 status: 'invalid',
@@ -90,25 +94,29 @@ export const email_finding_api = inngest.createFunction(
                 reason: 'No website provided for email finding'
             }
         }
-        //check cache first by first_name, last_name, company_name, domain
-        const { data: cachedResult, error: cacheError } = await supabase
-            .from('email_finding_cache')
-            .select('*')
-            .eq('first_name', first_name)
-            .eq('last_name', last_name)
-            // .eq('company_name', company_name)
-            .eq('domain', domain)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+        let cachedResult = null;
+        if (!ignore_cache) {
+            //check cache first by first_name, last_name, company_name, domain
+            const { data, error: cacheError } = await supabase
+                .from('email_finding_cache')
+                .select('*')
+                .eq('first_name', first_name)
+                .eq('last_name', last_name)
+                // .eq('company_name', company_name)
+                .eq('domain', domain)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+            cachedResult = data;
+        }
         if (cachedResult) {
             console.log("Using cached email finding result", { first_name, last_name, company_name, domain });
             return { ...cachedResult.response_data, cached: true };
         }
         const response = await leadmagic('/email-finder', { first_name, last_name, company_name, domain });
         console.log("Leadmagic email finding response", response);
-        //cache the result
-        console.log("Inserting into email_finding_cache:", {
+        //upsert the result
+        console.log("Upserting into email_finding_cache:", {
             first_name,
             last_name,
             company_name,
@@ -117,9 +125,9 @@ export const email_finding_api = inngest.createFunction(
             response_data: response,
             cached: false
         });
-        const { error: insertError } = await supabase
+        const { error: upsertError } = await supabase
             .from('email_finding_cache')
-            .insert({
+            .upsert({
                 //similar to email validation cache
                 first_name,
                 last_name,
@@ -127,10 +135,11 @@ export const email_finding_api = inngest.createFunction(
                 domain,
                 response_data: response,
                 status: response.email_status,
-                cached: false
-            });
-        if (insertError) {
-            console.error("Error caching email finding result:", insertError);
+                cached: false,
+                created_at: new Date().toISOString()
+            }, { onConflict: 'first_name,last_name,company_name,domain' });
+        if (upsertError) {
+            console.error("Error upserting email finding result:", upsertError);
         }
         return response;
     }
@@ -141,8 +150,8 @@ export default inngest.createFunction(
     { id: "validate-email", concurrency: 10 },
     { event: "email/validate" },
     async ({ event, step, logger }: { event: EmailValidateEvent, step: any, logger: any }) => {
-        const { run_record } = event.data;
-        console.log("Validating email", { run_record });
+        const { run_record, ignore_cache } = event.data;
+        console.log("Validating email", { run_record, ignore_cache });
 
         const regex_validation = await step.run("regex-validation", async () => {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -163,7 +172,7 @@ export default inngest.createFunction(
             // Run email finding in parallel with validation
             const email_finding = await step.invoke("email-finding-api", {
                 function: email_finding_api,
-                data: { run_record }
+                data: { run_record, ignore_cache }
             })
             await step.run("update-run-record", async () => {
                 const { error } = await supabase
@@ -178,7 +187,7 @@ export default inngest.createFunction(
         // If regex validation passed, just validate the email
         const email_validation = await step.invoke("email-validation-api", {
             function: email_validation_api,
-            data: { run_record }
+            data: { run_record, ignore_cache }
         });
         console.log("Email validation data", { email_validation });
         await step.run("update-run-record", async () => {
@@ -192,7 +201,7 @@ export default inngest.createFunction(
             logger.info("Email validation failed: email validation failed");
             const email_finding = await step.invoke("email-finding-api", {
                 function: email_finding_api,
-                data: { run_record }
+                data: { run_record, ignore_cache }
             });
             await step.run("update-run-record", async () => {
                 const { error } = await supabase

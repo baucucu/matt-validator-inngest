@@ -4,6 +4,7 @@ export type RunQueued = {
   name: "run/queued";
   data: {
     run_id: string;
+    ignore_cache?: boolean;
   };
 }
 
@@ -11,6 +12,7 @@ export type RunRecordQueued = {
   name: "run/record/queued";
   data: {
     run_record_id: any;
+    ignore_cache?: boolean;
   };
 }
 
@@ -33,6 +35,7 @@ export type EmailValidateEvent = {
   data: {
     run_record?: any;
     email?: string;
+    ignore_cache?: boolean;
   };
 };
 
@@ -42,6 +45,7 @@ export type CompanyValidateEvent = {
     run_record?: any;
     website?: string;
     requirements?: string;
+    ignore_cache?: boolean;
   };
 };
 

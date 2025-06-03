@@ -9,6 +9,7 @@ export default inngest.createFunction(
     async ({ event, step }: { event: RunQueued; step: any }) => {
 
         const run_id = event.data?.run_id;
+        const ignore_cache = event.data?.ignore_cache;
         if (!run_id) {
             return {
                 message: "No run id"
@@ -46,7 +47,7 @@ export default inngest.createFunction(
                     // Send event for this run record
                     const eventResult = await inngest.send({
                         name: "run/record/queued",
-                        data: { run_record_id: record.id }
+                        data: { run_record_id: record.id, ignore_cache }
                     });
 
                     // Update run record with processing status and event ID
